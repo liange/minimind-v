@@ -159,6 +159,56 @@ git clone --depth 1 https://github.com/jingyaogong/minimind-v
 pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
+> Note: the command above works as-is on Python 3.10 (matching the setup listed above). For **Windows + Python 3.12**, follow the notes below.
+
+<details>
+<summary>Windows + Python 3.12 setup (optional)</summary>
+
+These dependencies have been verified on Windows + Python 3.12 + an RTX 40-series GPU (driver 576.52 / CUDA 12.9). Key points:
+
+1. Use a virtual environment so your global Python stays clean;
+2. `torch` is commented out in `requirements.txt`, but `peft` / `trl` / `sentence-transformers` all depend on it. Installing the requirements alone therefore pulls the **CPU build of torch**; install the CUDA build separately first if you want GPU training;
+3. `matplotlib` and `ujson` are pinned to `3.9.4` / `5.10.0` so that official prebuilt wheels are available. The older `3.5.1` / `5.1.0` releases have no cp312 wheel, so pip falls back to a source build and fails with `error: command 'msbuild' failed` when no MSVC toolchain is installed;
+4. Use Python 3.10 or 3.12. On 3.13 / 3.14, dependencies such as `numpy==1.26.4` and `scikit_learn==1.5.1` also lack prebuilt wheels and will trigger source builds again;
+5. Activate the virtual environment before running any script (or call `.\.venv\Scripts\python.exe` directly). The Windows console defaults to GBK, and `eval_vlm.py` prints emoji such as 💬 / 🤖, which fails with `UnicodeEncodeError: 'gbk' codec can't encode character` unless UTF-8 mode is enabled.
+
+```powershell
+# 0. Create and activate a virtual environment (py -3.12 selects Python 3.12)
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -U pip -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+# 1. Install the CUDA build of PyTorch first (cu126 needs NVIDIA driver >= 525)
+python -m pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cu126
+
+# 2. Install the remaining dependencies
+python -m pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+# 3. Verify GPU availability
+python -c "import torch; print(torch.__version__, torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+```
+
+```powershell
+# 4. Run inference (enable UTF-8 first on Windows, otherwise printing emoji raises UnicodeEncodeError)
+$env:PYTHONUTF8 = '1'
+python eval_vlm.py --load_from model --weight sft_vlm
+```
+
+Both the environment and the encoding issue are handled by `run.bat` in the project root (it always uses the `.venv` interpreter and enables UTF-8). Double-click it or call it from a terminal:
+
+```powershell
+run.bat                                      # image inference, same as eval_vlm.py (sft_vlm weights by default)
+run.bat eval --weight pretrain_vlm           # pick another weight
+run.bat web                                  # Gradio web demo (port 8888)
+run.bat pretrain                             # pre-training
+run.bat sft                                  # SFT fine-tuning
+run.bat help                                 # list every mode
+```
+
+Note: the CUDA torch wheel is about 2.5 GB, and the official source (`download.pytorch.org`) measured faster than mainland pytorch mirrors. pip cannot resume interrupted downloads, so on an unstable connection download the wheel with `curl -C - -O <wheel-url>` and then run `python -m pip install <local-wheel-file>`.
+
+</details>
+
 ### 2' Download resources
 
 ```bash

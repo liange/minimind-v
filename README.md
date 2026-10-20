@@ -157,6 +157,56 @@ git clone --depth 1 https://github.com/jingyaogong/minimind-v
 pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
+> 注：以上命令在 Python 3.10（与上表配置一致）下可直接使用；若使用 **Windows + Python 3.12**，请参考下方说明。
+
+<details>
+<summary>Windows + Python 3.12 环境说明（可选）</summary>
+
+本仓库依赖已在 Windows + Python 3.12 + RTX 40 系显卡（驱动 576.52 / CUDA 12.9）上验证通过，安装要点：
+
+1. 建议使用虚拟环境，避免污染全局 Python；
+2. `requirements.txt` 中的 `torch` 默认是注释状态，但 `peft` / `trl` / `sentence-transformers` 都依赖它。直接安装 requirements 会自动装上 **CPU 版 torch**，需要 GPU 训练时必须先单独安装 CUDA 版 PyTorch；
+3. `matplotlib`、`ujson` 已调整为 `3.9.4` / `5.10.0`，以使用官方预编译 wheel。旧版本 `3.5.1` / `5.1.0` 没有 cp312 wheel，pip 会回退到源码编译并因缺少 MSVC（`msbuild`）而报错 `error: command 'msbuild' failed`；
+4. 请使用 Python 3.10 或 3.12。3.13 / 3.14 下 `numpy==1.26.4`、`scikit_learn==1.5.1` 等依赖同样缺少预编译 wheel，会再次触发源码编译；
+5. 运行脚本前先激活虚拟环境（或直接调用 `.\.venv\Scripts\python.exe`）。Windows 控制台默认 GBK 编码，`eval_vlm.py` 会打印 💬 / 🤖 等 emoji，未开启 UTF-8 模式时会报 `UnicodeEncodeError: 'gbk' codec can't encode character`。
+
+```powershell
+# 0. 创建并激活虚拟环境（py -3.12 指向本机 Python 3.12）
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -U pip -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+# 1. 先装 CUDA 版 PyTorch（cu126 要求 NVIDIA 驱动 >= 525）
+python -m pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cu126
+
+# 2. 再装其余依赖
+python -m pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+# 3. 验证 GPU 是否可用
+python -c "import torch; print(torch.__version__, torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+```
+
+```powershell
+# 4. 运行推理（Windows 需先开启 UTF-8，否则打印 emoji 会报 UnicodeEncodeError）
+$env:PYTHONUTF8 = '1'
+python eval_vlm.py --load_from model --weight sft_vlm
+```
+
+上述环境与编码问题都已在项目根目录的 `run.bat` 中处理（自动使用 `.venv` 解释器、自动开启 UTF-8），可直接双击运行或在终端调用：
+
+```powershell
+run.bat                                      # 图像推理，等价于 eval_vlm.py（默认 sft_vlm 权重）
+run.bat eval --weight pretrain_vlm           # 指定权重
+run.bat web                                  # Gradio 网页 Demo（端口 8888）
+run.bat pretrain                             # 预训练
+run.bat sft                                  # SFT 微调
+run.bat help                                 # 查看全部模式
+```
+
+注：CUDA 版 torch 的 wheel 约 2.5 GB，实测官方源（`download.pytorch.org`）速度优于国内 pytorch 镜像。pip 不支持断点续传，网络不稳时可先用 `curl -C - -O <wheel-url>` 手动续传，再执行 `python -m pip install <本地wheel文件>` 安装。
+
+</details>
+
 ### 2' 下载资源
 
 ```bash
